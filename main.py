@@ -1,34 +1,50 @@
-import os
-import customtkinter as ctk
-from core_backend.database import initialize_database
-from app_frontend.mobile_ui import DesktopApp
+import sqlite3
+
+ANALYTICS_DB = "analytics_warehouse.db"
+
+def initialize_warehouse():
+    """Creates an industry-standard analytical Star Schema database."""
+    conn = sqlite3.connect(ANALYTICS_DB)
+    cursor = conn.cursor()
+    
+    # 1. Dimension Table: Tracks unique UK user profiles
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS dim_users (
+        user_key INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT UNIQUE,
+        first_seen_location TEXT,
+        preferred_device TEXT
+    );
+    """)
+
+    # 2. Dimension Table: Tracks clean utility/mobile service categorizations
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS dim_services (
+        service_key INTEGER PRIMARY KEY AUTOINCREMENT,
+        service_type TEXT,
+        supplier_name TEXT,
+        UNIQUE(service_type, supplier_name)
+    );
+    """)
+
+    # 3. Central Fact Table: Stores raw numerical transaction metrics
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS fact_transactions (
+        fact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        transaction_id TEXT UNIQUE,
+        timestamp TEXT,
+        user_key INTEGER,
+        service_key INTEGER,
+        amount REAL,
+        status TEXT,
+        FOREIGN KEY(user_key) REFERENCES dim_users(user_key),
+        FOREIGN KEY(service_key) REFERENCES dim_services(service_key)
+    );
+    """)
+    
+    conn.commit()
+    conn.close()
+    print("🏛️ [WAREHOUSE]: Analytics Star Schema initialized successfully.")
 
 if __name__ == "__main__":
-    # 1. Initialize local SQLite tables schema
-    initialize_database()
-    
-    # 2. Setup Master Desktop Window
-    ctk.set_appearance_mode("dark")
-    ctk.set_default_color_theme("blue")
-    
-    root = ctk.CTk()
-    root.title("PocketPay UK - Desktop Console")
-    root.geometry("1100x700")
-    
-    # 🔒 FIX: Configured absolute system mapping path rules
-    # This prevents directory drops if launched from an outside environment layer.
-    base_dir = r"C:\GitHub\uk-energy-prepay-app"
-    icon_path = os.path.join(base_dir, "pp.ico")
-    
-    if os.path.exists(icon_path):
-        root.iconbitmap(icon_path)
-        print(f"[SYSTEM]: Successfully linked asset icon layer from: {icon_path}")
-    else:
-        print(f"[SYSTEM WARNING]: Icon file not found at '{icon_path}'.")
-        print("Please ensure your 'pp.ico' file is saved inside that exact folder.")
-    
-    # 3. Load UI Canvas Layers
-    app = DesktopApp(root)
-    
-    print("[SYSTEM]: Desktop Dashboard active (Native Rendering)")
-    root.mainloop()
+    initialize_warehouse()
